@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Egocentric Platform</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1a2e1a;
+            padding: 16px 24px;
+            border-bottom: 1px solid #2d6a4f;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        header h1 {
+            font-size: 18px;
+            color: #52b788;
+            font-weight: 600;
+        }
+
+        header span {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr 260px;
+            gap: 0;
+            height: calc(100vh - 57px);
+        }
+
+        /* LEFT PANEL */
+        .left-panel {
+            background: #141414;
+            border-right: 1px solid #222;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #52b788;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .mode-btn {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 10px;
+            border: 1px solid #2d6a4f;
+            border-radius: 8px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mode-btn:hover { background: #1e3a2e; }
+        .mode-btn.active {
+            background: #1e3a2e;
+            border-color: #52b788;
+            color: #52b788;
+        }
+
+        .mode-btn .icon { font-size: 20px; }
+        .mode-btn .label { font-size: 13px; font-weight: 500; }
+        .mode-btn .sub { font-size: 11px; color: #666; display: block; margin-top: 2px; }
+
+        .upload-area {
+            border: 2px dashed #2d6a4f;
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 16px;
+            display: none;
+        }
+
+        .upload-area:hover { border-color: #52b788; background: #1a2e1a; }
+        .upload-area .upload-icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-area p { font-size: 12px; color: #888; }
+        .upload-area strong { color: #52b788; font-size: 13px; }
+
+        #file-input { display: none; }
+
+        .uploaded-file {
+            background: #1a2e1a;
+            border: 1px solid #2d6a4f;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-top: 10px;
+            font-size: 12px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .uploaded-file .filename {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #95d5b2;
+        }
+
+        .start-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            background: #2d6a4f;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .start-btn:hover { background: #52b788; color: #0f0f0f; }
+
+        .stop-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 8px;
+            background: #3a1a1a;
+            color: #f08080;
+            border: 1px solid #6a2d2d;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .stop-btn:hover { background: #6a2d2d; }
+
+        /* CENTER PANEL */
+        .center-panel {
+            background: #0a0a0a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .placeholder {
+            text-align: center;
+            color: #444;
+        }
+
+        .placeholder .big-icon { font-size: 64px; margin-bottom: 16px; }
+        .placeholder p { font-size: 14px; }
+
+        #video-display {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        .side-by-side-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            padding: 16px;
+            gap: 16px;
+            align-items: center;
+            justify-content: flex-start;
+            overflow-y: auto;
+        }
+
+        .frames-row {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .view-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-start;
+        }
+
+        .view-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #52b788;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        #input-video, #processed-output {
+            max-width: 100%;
+            max-height: 48vh;
+            object-fit: contain;
+            border: 2px solid #222;
+            border-radius: 8px;
+            background: #000;
+        }
+
+        /* Annotations Console Styles */
+        .annotations-console {
+            width: 100%;
+            background: #111;
+            border: 1px solid #222;
+            border-top: 3px solid #52b788;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: 'Segoe UI', monospace;
+            font-size: 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #222;
+            padding-bottom: 6px;
+        }
+
+        .console-title {
+            color: #52b788;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        .console-status {
+            color: #888;
+            font-size: 10px;
+            background: #1e1e1e;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .console-body {
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-right: 5px;
+            font-family: monospace;
+        }
+
+        .console-line {
+            display: flex;
+            gap: 10px;
+            line-height: 1.4;
+            padding: 2px 0;
+            border-bottom: 1px dashed #1a1a1a;
+            align-items: center;
+        }
+
+        .console-time {
+            color: #666;
+            min-width: 80px;
+            font-size: 11px;
+        }
+
+        .console-tag {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            min-width: 85px;
+            text-align: center;
+        }
+
+        .console-tag.hand { background: #1a3e2d; color: #52b788; }
+        .console-tag.activity { background: #3c1e5c; color: #b788ff; }
+        .console-tag.object { background: #1e2d5c; color: #88b7ff; }
+        .console-tag.interaction { background: #47281f; color: #ff8b6b; }
+        .console-tag.system { background: #222; color: #888; }
+
+        .console-text {
+            color: #ddd;
+            flex-grow: 1;
+            font-size: 12px;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: none;
+            z-index: 10;
+        }
+
+        .status-badge.live {
+            background: #ff3333;
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-badge.processing {
+            background: #2d6a4f;
+            color: #95d5b2;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* RIGHT PANEL */
+        .right-panel {
+            background: #141414;
+            border-left: 1px solid #222;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .stat-section {
+            margin-bottom: 20px;
+        }
+
+        .stat-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .stat-item {
+            background: #1a1a1a;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border-left: 3px solid #2d6a4f;
+        }
+
+        .stat-item.hand { border-left-color: #52b788; }
+        .stat-item.object { border-left-color: #4361ee; }
+        .stat-item.interaction { border-left-color: #f4845f; }
+        .stat-item.activity { border-left-color: #9c6ade; }
+
+        .stat-empty {
+            font-size: 12px;
+            color: #444;
+            padding: 8px 0;
+        }
+
+        .imu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .imu-item {
+            background: #1a1a1a;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 11px;
+        }
+
+        .imu-item .imu-label { color: #666; margin-bottom: 2px; }
+        .imu-item .imu-value { color: #95d5b2; font-weight: 600; }
+
+        .vel-bar {
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        .vel-fill {
+            height: 100%;
+            background: #52b788;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🖐 Hand Egocentric Platform</h1>
+    <span>Real-time hand tracking & activity recognition</span>
+</header>
+
+<div class="container">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <div class="panel-title">Input Source</div>
+
+        <button class="mode-btn active" id="btn-webcam" onclick="selectMode('webcam')">
+            <span class="icon">📷</span>
+            <span>
+                <span class="label">Live Webcam</span>
+                <span class="sub">Real-time detection from camera</span>
+            </span>
+        </button>
+
+        <button class="mode-btn" id="btn-video" onclick="selectMode('video')">
+            <span class="icon">🎬</span>
+            <span>
+                <span class="label">Video File</span>
+                <span class="sub">Process a recorded video</span>
+            </span>
+        </button>
+
+        <!-- Upload area (video mode only) -->
+        <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+            <div class="upload-icon">📁</div>
+            <strong>Click to upload video</strong>
+            <p>Supports MP4, AVI, MOV, MKV</p>
+        </div>
+        <input type="file" id="file-input" accept="video/*" onchange="handleFileUpload(this)">
+
+        <div class="uploaded-file" id="uploaded-file">
+            <span>🎬</span>
+            <span class="filename" id="filename-label">video.mp4</span>
+        </div>
+
+        <button class="start-btn" id="start-btn" onclick="startProcessing()">
+            ▶ Start
+        </button>
+
+        <button class="stop-btn" id="stop-btn" onclick="stopProcessing()">
+            ■ Stop
+        </button>
+    </div>
+
+    <!-- CENTER PANEL -->
+    <div class="center-panel">
+        <div class="placeholder" id="placeholder">
+            <div class="big-icon">🖐</div>
+            <p>Select a source and click Start</p>
+        </div>
+
+        <!-- Side-by-Side Video + Analysis Workspace (Unified for webcam and video files) -->
+        <div class="side-by-side-container" id="video-workspace" style="display: none;">
+            <div class="frames-row">
+                <div class="view-panel" id="original-video-panel">
+                    <div class="view-title">Original Video (Timeline Control)</div>
+                    <video id="input-video" controls></video>
+                </div>
+                <div class="view-panel" id="processed-output-panel">
+                    <div class="view-title" id="processed-view-title">Real-Time AI Analysis</div>
+                    <img id="processed-output" alt="AI analysis frame"/>
+                </div>
+            </div>
+
+            <!-- Live Annotations Console -->
+            <div class="annotations-console">
+                <div class="console-header">
+                    <span class="console-title">🟢 LIVE ANNOTATIONS & EVENT LOGS</span>
+                    <span class="console-status" id="console-status-text">Ready</span>
+                </div>
+                <div class="console-body" id="console-log-container">
+                    <div class="console-line">
+                        <span class="console-time">—</span>
+                        <span class="console-tag system">system</span>
+                        <span class="console-text">Initialized live annotations feed. Waiting for video frame input...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-badge live" id="badge-live">● LIVE</div>
+        <div class="status-badge processing" id="badge-processing">⚙ PROCESSING</div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <div class="panel-title">Live Detection</div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Hands Detected</div>
+            <div id="hands-list"><div class="stat-empty">No hands detected</div></div>
+        </div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Objects Detected</div>
+            <div id="objects-list"><div class="stat-empty">No objects detected</div></div>
+        </div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Interactions</div>
+            <div id="interactions-list"><div class="stat-empty">No interactions</div></div>
+        </div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Activities</div>
+            <div id="activities-list"><div class="stat-empty">No activities</div></div>
+        </div>
+
+        <div class="stat-section">
+            <div class="stat-section-title">Motion Analytics</div>
+            <div id="motion-stats">
+                <div class="stat-empty">No motion data</div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentMode = 'webcam';
+let uploadedPath = null;
+let uploadedFilename = null;
+let statsInterval = null;
+let isRunning = false;
+
+// Video frame processing elements
+const videoEl = document.getElementById('input-video');
+const processedImg = document.getElementById('processed-output');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+let processingFrame = false;
+
+// Track video frames during play / seek
+videoEl.addEventListener('play', () => {
+    if (isRunning) requestAnimationFrame(processLoop);
+});
+videoEl.addEventListener('seeked', () => {
+    if (isRunning) processCurrentFrame();
+});
+videoEl.addEventListener('timeupdate', () => {
+    // Also process on slide/scrub update when paused
+    if (isRunning && videoEl.paused) processCurrentFrame();
+});
+
+function selectMode(mode) {
+    currentMode = mode;
+    document.getElementById('btn-webcam').classList.toggle('active', mode === 'webcam');
+    document.getElementById('btn-video').classList.toggle('active', mode === 'video');
+    document.getElementById('upload-area').style.display = mode === 'video' ? 'block' : 'none';
+    document.getElementById('uploaded-file').style.display = 'none';
+    uploadedPath = null;
+    uploadedFilename = null;
+    stopProcessing();
+    updateStartBtn();
+}
+
+function updateStartBtn() {
+    const btn = document.getElementById('start-btn');
+    if (currentMode === 'webcam') {
+        btn.style.display = 'block';
+    } else if (currentMode === 'video' && uploadedPath) {
+        btn.style.display = 'block';
+    } else {
+        btn.style.display = currentMode === 'video' ? 'none' : 'block';
+    }
+}
+
+function handleFileUpload(input) {
+    if (!input.files[0]) return;
+    const file = input.files[0];
+
+    const formData = new FormData();
+    formData.append('video', file);
+
+    fetch('/upload_video', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                uploadedPath = data.path;
+                uploadedFilename = data.filename;
+                document.getElementById('filename-label').textContent = data.filename;
+                document.getElementById('uploaded-file').style.display = 'flex';
+                document.getElementById('start-btn').style.display = 'block';
+            }
+        });
+}
+
+function startProcessing() {
+    if (isRunning) return;
+    isRunning = true;
+
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('stop-btn').style.display = 'block';
+
+    // Show workspace
+    document.getElementById('video-workspace').style.display = 'flex';
+
+    if (currentMode === 'webcam') {
+        // Hide original video frame for webcam mode
+        document.getElementById('original-video-panel').style.display = 'none';
+        document.getElementById('processed-view-title').textContent = "Live Webcam Feed";
+        document.getElementById('badge-live').style.display = 'block';
+        document.getElementById('processed-output').src = '/webcam_feed';
+        
+        // Poll stats for webcam feed
+        statsInterval = setInterval(updateStats, 500);
+    } else {
+        // Show original video frame for video mode
+        document.getElementById('original-video-panel').style.display = 'flex';
+        document.getElementById('processed-view-title').textContent = "Real-Time AI Analysis";
+        document.getElementById('badge-processing').style.display = 'block';
+        
+        // Load uploaded video in client player
+        videoEl.src = `/uploads/${encodeURIComponent(uploadedFilename)}`;
+        videoEl.load();
+        videoEl.play();
+    }
+}
+
+function stopProcessing() {
+    isRunning = false;
+    fetch('/stop');
+
+    document.getElementById('processed-output').src = '';
+    videoEl.src = '';
+    
+    document.getElementById('video-workspace').style.display = 'none';
+    document.getElementById('placeholder').style.display = 'block';
+    document.getElementById('badge-live').style.display = 'none';
+    document.getElementById('badge-processing').style.display = 'none';
+    document.getElementById('start-btn').style.display = currentMode === 'webcam' || uploadedPath ? 'block' : 'none';
+    document.getElementById('stop-btn').style.display = 'none';
+
+    if (statsInterval) clearInterval(statsInterval);
+    resetStats();
+}
+
+function processLoop() {
+    if (videoEl.paused || videoEl.ended || !isRunning) return;
+    processCurrentFrame().then(() => {
+        // Throttle processing to ~12 FPS to reduce lag on lower spec laptops
+        setTimeout(() => {
+            requestAnimationFrame(processLoop);
+        }, 80); 
+    });
+}
+
+function processCurrentFrame() {
+    if (processingFrame || !isRunning) return Promise.resolve();
+    processingFrame = true;
+
+    // Downscale frame to max 640px to speed up YOLO/MediaPipe processing and decrease bandwidth
+    const maxDim = 640;
+    let targetWidth = videoEl.videoWidth || 640;
+    let targetHeight = videoEl.videoHeight || 480;
+    if (targetWidth > maxDim || targetHeight > maxDim) {
+        if (targetWidth > targetHeight) {
+            targetHeight = Math.round((targetHeight * maxDim) / targetWidth);
+            targetWidth = maxDim;
+        } else {
+            targetWidth = Math.round((targetWidth * maxDim) / targetHeight);
+            targetHeight = maxDim;
+        }
+    }
+
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+    }
+
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                processingFrame = false;
+                resolve();
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+
+            fetch('/process_single_frame', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.image) {
+                        processedImg.src = data.image;
+                    }
+                    if (data.stats) {
+                        renderLiveStats(data.stats);
+                    }
+                    processingFrame = false;
+                    resolve();
+                })
+                .catch(err => {
+                    console.error("Error processing frame:", err);
+                    processingFrame = false;
+                    resolve();
+                });
+        }, 'image/jpeg', 0.7); // 0.7 quality to reduce upload file size
+    });
+}
+
+let lastLoggedState = {
+    hands: "",
+    objects: "",
+    interactions: "",
+    activities: ""
+};
+
+function addConsoleLog(tag, text) {
+    const container = document.getElementById('console-log-container');
+    if (!container) return;
+
+    const line = document.createElement('div');
+    line.className = 'console-line';
+
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+    line.innerHTML = `
+        <span class="console-time">[${timeStr}]</span>
+        <span class="console-tag ${tag}">${tag}</span>
+        <span class="console-text">${text}</span>
+    `;
+
+    container.appendChild(line);
+    
+    // Keep max 50 log items
+    while (container.childNodes.length > 55) {
+        container.removeChild(container.firstChild);
+    }
+    
+    // Auto-scroll
+    container.scrollTop = container.scrollHeight;
+}
+
+function renderLiveStats(data) {
+    // Update console status header
+    const consoleStatus = document.getElementById('console-status-text');
+    if (consoleStatus) {
+        consoleStatus.textContent = isRunning ? "Processing Stream" : "Ready";
+    }
+
+    // Hands
+    const handsList = document.getElementById('hands-list');
+    if (data.hands && data.hands.length > 0) {
+        handsList.innerHTML = data.hands.map(h =>
+            `<div class="stat-item hand">🖐 ${h} hand detected</div>`
+        ).join('');
+    } else {
+        handsList.innerHTML = '<div class="stat-empty">No hands detected</div>';
+    }
+
+    // Objects
+    const objList = document.getElementById('objects-list');
+    if (data.objects && data.objects.length > 0) {
+        objList.innerHTML = [...new Set(data.objects)].map(o =>
+            `<div class="stat-item object">📦 ${o}</div>`
+        ).join('');
+    } else {
+        objList.innerHTML = '<div class="stat-empty">No objects detected</div>';
+    }
+
+    // Interactions
+    const intList = document.getElementById('interactions-list');
+    if (data.interactions && data.interactions.length > 0) {
+        intList.innerHTML = [...new Set(data.interactions)].map(i =>
+            `<div class="stat-item interaction">🤝 ${i}</div>`
+        ).join('');
+    } else {
+        intList.innerHTML = '<div class="stat-empty">No interactions</div>';
+    }
+
+    // Activities
+    const actList = document.getElementById('activities-list');
+    if (data.activities && data.activities.length > 0) {
+        actList.innerHTML = [...new Set(data.activities)].map(a =>
+            `<div class="stat-item activity">⚡ ${a}</div>`
+        ).join('');
+    } else {
+        actList.innerHTML = '<div class="stat-empty">No activities</div>';
+    }
+
+    // Motion
+    const motionDiv = document.getElementById('motion-stats');
+    let motionHtml = '';
+    let velDetails = [];
+    for (const hand of ['left', 'right']) {
+        const vel = data[`${hand}_velocity`];
+        const imu = data[`${hand}_imu`];
+        if (vel !== undefined) {
+            const pct = Math.min((vel / 50) * 100, 100);
+            if (vel > 0) {
+                velDetails.push(`${hand} hand speed: ${vel.toFixed(1)}`);
+            }
+            motionHtml += `
+                <div style="margin-bottom:10px">
+                    <div style="font-size:11px;color:#666;margin-bottom:4px">
+                        ${hand.toUpperCase()} velocity: ${vel.toFixed(1)}
+                    </div>
+                    <div class="vel-bar">
+                        <div class="vel-fill" style="width:${pct}%"></div>
+                    </div>
+                </div>`;
+            if (imu) {
+                motionHtml += `<div class="imu-grid">
+                    <div class="imu-item">
+                        <div class="imu-label">Accel X</div>
+                        <div class="imu-value">${imu.accel_x.toFixed(2)}</div>
+                    </div>
+                    <div class="imu-item">
+                        <div class="imu-label">Accel Y</div>
+                        <div class="imu-value">${imu.accel_y.toFixed(2)}</div>
+                    </div>
+                    <div class="imu-item">
+                        <div class="imu-label">Gyro Z</div>
+                        <div class="imu-value">${imu.gyro_z.toFixed(2)}</div>
+                    </div>
+                </div>`;
+            }
+        }
+    }
+    motionDiv.innerHTML = motionHtml || '<div class="stat-empty">No motion data</div>';
+
+    // Helper formatting functions for live human commentaries
+    function formatInteraction(interactionStr) {
+        if (!interactionStr) return "";
+        const parts = interactionStr.split(' ');
+        if (parts.length >= 3) {
+            const hand = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+            const type = parts[1].toLowerCase();
+            const obj = parts.slice(2).join(' ');
+            
+            let verb = "is";
+            if (type === "holding") verb = "is holding";
+            else if (type === "touching") verb = "is touching";
+            else if (type === "near") verb = "is near";
+            else verb = `${verb} ${type}`;
+            
+            const vowels = ['a', 'e', 'i', 'o', 'u'];
+            let article = vowels.includes(obj.charAt(0).toLowerCase()) ? 'an' : 'a';
+            if (obj.endsWith('s') || obj.toLowerCase().includes('water') || obj.toLowerCase().includes('food') || obj.toLowerCase().includes('sauce') || obj.toLowerCase().includes('sugar') || obj.toLowerCase().includes('salt') || obj.toLowerCase().includes('pepper') || obj.toLowerCase().includes('spice')) {
+                article = '';
+            }
+            
+            return `Person's ${hand} hand ${verb} ${article ? article + ' ' : ''}${obj}`;
+        }
+        return interactionStr;
+    }
+
+    function formatActivity(activityStr) {
+        if (!activityStr) return "";
+        const parts = activityStr.split(': ');
+        if (parts.length >= 2) {
+            const hand = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+            let rest = parts[1];
+            rest = rest.replace('(v=', '(velocity: ').replace(')', '');
+            return `Person's ${hand} hand action: ${rest}`;
+        }
+        return activityStr;
+    }
+
+    // Log live events to the annotations console
+    const currentHands = data.hands && data.hands.length > 0 ? data.hands.join(', ') : "";
+    const currentObjects = data.objects && data.objects.length > 0 ? [...new Set(data.objects)].join(', ') : "";
+    
+    // Parse items to beautiful live texts
+    const rawInteractions = data.interactions && data.interactions.length > 0 ? [...new Set(data.interactions)] : [];
+    const formattedInteractionsList = rawInteractions.map(formatInteraction);
+    const currentInteractions = formattedInteractionsList.join(', ');
+
+    const rawActivities = data.activities && data.activities.length > 0 ? [...new Set(data.activities)] : [];
+    const formattedActivitiesList = rawActivities.map(formatActivity);
+    const currentActivities = formattedActivitiesList.join(', ');
+
+    if (currentHands !== lastLoggedState.hands) {
+        if (currentHands) {
+            const speedInfo = velDetails.length > 0 ? ` (${velDetails.join(', ')})` : '';
+            addConsoleLog('hand', `Hand detected: ${currentHands}${speedInfo}`);
+        } else {
+            addConsoleLog('hand', `No hands detected in view`);
+        }
+        lastLoggedState.hands = currentHands;
+    }
+
+    if (currentObjects !== lastLoggedState.objects) {
+        if (currentObjects) {
+            addConsoleLog('object', `Objects identified: ${currentObjects}`);
+        }
+        lastLoggedState.objects = currentObjects;
+    }
+
+    if (currentInteractions !== lastLoggedState.interactions) {
+        if (currentInteractions) {
+            rawInteractions.forEach((raw, idx) => {
+                addConsoleLog('interaction', formattedInteractionsList[idx]);
+            });
+        }
+        lastLoggedState.interactions = currentInteractions;
+    }
+
+    if (currentActivities !== lastLoggedState.activities) {
+        if (currentActivities) {
+            rawActivities.forEach((raw, idx) => {
+                addConsoleLog('activity', formattedActivitiesList[idx]);
+            });
+        }
+        lastLoggedState.activities = currentActivities;
+    }
+}
+
+function updateStats() {
+    fetch('/stats')
+        .then(r => r.json())
+        .then(data => {
+            renderLiveStats(data);
+        });
+}
+
+function resetStats() {
+    document.getElementById('hands-list').innerHTML = '<div class="stat-empty">No hands detected</div>';
+    document.getElementById('objects-list').innerHTML = '<div class="stat-empty">No objects detected</div>';
+    document.getElementById('interactions-list').innerHTML = '<div class="stat-empty">No interactions</div>';
+    document.getElementById('activities-list').innerHTML = '<div class="stat-empty">No activities</div>';
+    document.getElementById('motion-stats').innerHTML = '<div class="stat-empty">No motion data</div>';
+
+    // Clear and reset console annotations
+    const container = document.getElementById('console-log-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="console-line">
+                <span class="console-time">—</span>
+                <span class="console-tag system">system</span>
+                <span class="console-text">Initialized live annotations feed. Waiting for video frame input...</span>
+            </div>`;
+    }
+    lastLoggedState = {
+        hands: "",
+        objects: "",
+        interactions: "",
+        activities: ""
+    };
+    const consoleStatus = document.getElementById('console-status-text');
+    if (consoleStatus) consoleStatus.textContent = "Ready";
+}
+
+// Show webcam start button by default
+document.getElementById('start-btn').style.display = 'block';
+</script>
+
+</body>
+</html>

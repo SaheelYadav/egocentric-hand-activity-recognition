@@ -42,7 +42,7 @@ def _preprocess(frame: np.ndarray) -> np.ndarray:
     """
     lab   = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
     l     = clahe.apply(l)
     enhanced = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
 
@@ -78,8 +78,8 @@ class HandTracker:
     def __init__(
         self,
         max_hands: int = 2,
-        detection_confidence: float = 0.5,   # lowered from 0.7 for workshop
-        tracking_confidence: float  = 0.5,
+        detection_confidence: float = 0.4,   # lowered from 0.7 for workshop
+        tracking_confidence: float  = 0.4,
         model_complexity: int       = 1,      # 0=fast, 1=balanced, 2=accurate
         mirror_labels: bool         = True,   # flip L/R for front-facing webcam
         preprocess: bool            = True,   # CLAHE + sharpen
@@ -138,6 +138,8 @@ class HandTracker:
             # MediaPipe mirrors left↔right for selfie/webcam streams
             if mirror:
                 label = "right" if raw_label == "left" else "left"
+                if output[label] is not None:
+                    label = raw_label
             else:
                 label = raw_label
 

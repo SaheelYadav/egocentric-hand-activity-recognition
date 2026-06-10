@@ -44,7 +44,7 @@ class ObjectDetector:
         self,
         coco_model: str = "yolo11n.pt",
         world_model: str = "yolov8s-worldv2.pt",
-        confidence: float = 0.35,
+        confidence: float = 0.25,
         iou_threshold: float = 0.45,
         custom_industrial_classes: list[str] | None = None,
     ):
@@ -126,17 +126,25 @@ class ObjectDetector:
     # ────────────────────────────────────────────────────────────────────
     #  Public API  (same interface as your original class)
     # ────────────────────────────────────────────────────────────────────
-
     def detect(self, frame: np.ndarray) -> list[dict]:
-        """
-        Run both models on *frame* and return merged, NMS-filtered detections.
-
-        Each detection dict contains:
-            label, bbox, confidence, track_id, source
-        """
-        coco_dets       = self._run_model(self.coco_model,  frame, "coco")
-        industrial_dets = self._run_model(self.world_model, frame, "industrial")
-        return self._merge_and_nms(coco_dets, industrial_dets)
+        coco_dets = self._run_model(self.coco_model, frame, "coco")
+        
+        # Run YOLO-World every 10 frames only to save CPU
+        if not hasattr(self, '_frame_count'):
+            self._frame_count = 0
+            self._last_industrial = []
+        
+        self._frame_count += 1
+        
+        if self._frame_count % 10 == 0:
+            try:
+                self._last_industrial = self._run_model(
+                    self.world_model, frame, "industrial"
+                )
+            except Exception:
+                self._last_industrial = []
+        
+        return self._merge_and_nms(coco_dets, self._last_industrial)
 
     def draw(self, frame: np.ndarray, detections: list[dict]) -> np.ndarray:
         """

@@ -13,6 +13,45 @@ from src.interaction.interaction_detector import InteractionDetector
 from src.interaction.workspace_understanding import WorkspaceUnderstanding
 from src.activity.activity_recognizer import ActivityRecognizer
 
+class WebcamVideoStream:
+    def __init__(self, src=0):
+        self.stream = cv2.VideoCapture(src)
+        self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.ret, self.frame = self.stream.read()
+        self.started = False
+        self.read_lock = threading.Lock()
+
+    def start(self):
+        if self.started:
+            return self
+        self.started = True
+        self.thread = threading.Thread(target=self.update, args=())
+        self.thread.daemon = True
+        self.thread.start()
+        return self
+
+    def update(self):
+        while self.started:
+            ret, frame = self.stream.read()
+            if ret:
+                with self.read_lock:
+                    self.ret = ret
+                    self.frame = frame
+            time.sleep(0.01)
+
+    def read(self):
+        with self.read_lock:
+            if self.frame is not None:
+                return self.ret, self.frame.copy()
+            return self.ret, None
+
+    def stop(self):
+        self.started = False
+        if hasattr(self, 'thread'):
+            self.thread.join()
+        self.stream.release()
+
+
 app = Flask(__name__)
 
 # Global state
@@ -20,7 +59,7 @@ tracker = HandTracker(max_hands=2)
 detector = ObjectDetector(
     coco_model="yolo11n.pt",
     world_model="yolov8s-worldv2.pt",
-    confidence=0.3,
+    confidence=0.25,
     iou_threshold=0.45
 )
 trajectory = TrajectoryGenerator(max_length=30)
@@ -30,6 +69,7 @@ workspace = WorkspaceUnderstanding(proximity_threshold=150)
 activity = ActivityRecognizer(history_size=20)
 
 cap = None
+webcam_stream = None
 is_running = False
 current_frame = None
 current_stats = {}
@@ -54,7 +94,7 @@ def process_frame(frame, is_webcam=True):
 
     h, w, _ = frame.shape
 
-    tracked_hands = tracker.process(frame, mirror_labels=is_webcam)
+    tracked_hands = tracker.process(frame, mirror_labels=False)
     detections = detector.detect(frame)
 
     trajectory.update(tracked_hands, detections, w, h)
@@ -70,27 +110,35 @@ def process_frame(frame, is_webcam=True):
     activities = activity.recognize(tracked_hands, workspace_events, w, h)
 
     frame = tracker.draw(frame, tracked_hands)
-    frame = detector.draw(frame, detections)
+    interacting_bboxes = {tuple(inter['bbox']) for inter in interactions}
+    interacting_detections = [
+        det for det in detections
+        if tuple(det['bbox']) in interacting_bboxes
+    ]
+    frame = detector.draw(frame, interacting_detections)
     frame = trajectory.draw(frame)
     frame = interaction.draw(frame, interactions)
-    frame = activity.draw(frame, activities)
+    frame = activity.draw(frame, activities, interactions=workspace_events)
 
     # Build stats
     stats = {
         "hands": [],
         "objects": [],
         "interactions": [],
-        "activities": []
+        "activities": [],
+        "summary": activity.get_scene_summary(activities, workspace_events)
     }
 
     for label, data in tracked_hands.items():
         if data is not None:
             stats["hands"].append(label.upper())
 
+    IGNORE_LABELS = ['person', 'nail', 'scissors', 'bed', 'couch', 'chair', 'dining table', 'floor']
     for det in detections:
-        stats["objects"].append(
-            f"{det['label']} ({det['confidence']:.0%})"
-        )
+        if det['label'] not in IGNORE_LABELS:
+            stats["objects"].append(
+                f"{det['label']} ({det['confidence']:.0%})"
+            )
 
     for inter in interactions:
         stats["interactions"].append(
@@ -99,8 +147,9 @@ def process_frame(frame, is_webcam=True):
 
     for act in activities:
         if act["velocity"] > 0.5:
+            nat_label = activity.get_natural_label(act["activity"], act["hand"], workspace_events)
             stats["activities"].append(
-                f"{act['hand'].upper()}: {act['activity']} "
+                f"{act['hand'].upper()}: {nat_label} "
                 f"(v={act['velocity']})"
             )
 
@@ -114,14 +163,15 @@ def process_frame(frame, is_webcam=True):
 
 
 def generate_webcam():
-    global cap, is_running, current_frame
-    cap = cv2.VideoCapture(0)
+    global is_running, current_frame, webcam_stream
+    webcam_stream = WebcamVideoStream(src=0).start()
     is_running = True
 
     while is_running:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        ret, frame = webcam_stream.read()
+        if not ret or frame is None:
+            time.sleep(0.01)
+            continue
 
         frame = process_frame(frame, is_webcam=True)
 
@@ -136,7 +186,9 @@ def generate_webcam():
                b'Content-Type: image/jpeg\r\n\r\n' + 
                frame_bytes + b'\r\n')
 
-    cap.release()
+    if webcam_stream:
+        webcam_stream.stop()
+        webcam_stream = None
 
 
 def generate_video(video_path):
@@ -269,10 +321,14 @@ def stats():
 
 @app.route('/stop')
 def stop():
-    global is_running, cap
+    global is_running, cap, webcam_stream
     is_running = False
     if cap:
         cap.release()
+        cap = None
+    if webcam_stream:
+        webcam_stream.stop()
+        webcam_stream = None
     return jsonify({"status": "stopped"})
 
 

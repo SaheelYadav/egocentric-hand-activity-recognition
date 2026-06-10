@@ -39,6 +39,9 @@ class InteractionDetector:
             )
 
             for det in detections:
+                if det["label"] in ["person", "nail", "scissors", "bed", "couch", "chair", "dining table", "floor"]:
+                    continue
+
                 bbox = det["bbox"]
                 obj_label = det["label"]
                 confidence = det["confidence"]

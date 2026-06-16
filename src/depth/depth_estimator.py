@@ -7,11 +7,13 @@ from transformers import pipeline
 class DepthEstimator:
     def __init__(self):
         print("Loading Depth Anything V2 model...")
+        device = 0 if torch.cuda.is_available() else -1
         self.pipe = pipeline(
             task="depth-estimation",
-            model="depth-anything/Depth-Anything-V2-Small-hf"
+            model="depth-anything/Depth-Anything-V2-Small-hf",
+            device=device
         )
-        print("Depth model loaded!")
+        print(f"Depth model loaded on device: {device}!")
 
     def estimate(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

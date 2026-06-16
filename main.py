@@ -52,7 +52,7 @@ def main():
     print("Initializing modules...")
     tracker = HandTracker(max_hands=2)
     detector = ObjectDetector(
-        coco_model="yolo11n.pt",
+        coco_model="yolo11s.pt",
         world_model="yolov8s-worldv2.pt",
         confidence=0.25
     )

@@ -25,6 +25,10 @@ def parse_args():
                         help="Detection confidence threshold")
     parser.add_argument("--depth", action="store_true",
                         help="Enable depth estimation (slow on CPU)")
+    parser.add_argument("--headless", action="store_true",
+                        help="Run in headless mode (no GUI windows, saves processed video)")
+    parser.add_argument("--output", default="processed_video.mp4",
+                        help="Output path for processed video (used in headless mode)")
     return parser.parse_args()
 
 
@@ -100,6 +104,12 @@ def main():
         print(f"  Total frames: {total_frames}")
         print(f"  Duration: {duration:.1f} seconds")
         print()
+
+    writer = None
+    if args.headless and is_video_file:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        writer = cv2.VideoWriter(args.output, fourcc, fps if fps > 0 else 30.0, (width, height))
+        print(f"Headless mode enabled. Processed video will be saved to: {args.output}")
 
     frame_idx = 0
     saving = args.save
@@ -183,10 +193,13 @@ def main():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6,
                             (0, 255, 255), 2)
 
-            cv2.imshow("Hand Egocentric Platform", frame)
+            if not args.headless:
+                cv2.imshow("Hand Egocentric Platform", frame)
+                if show_depth and depth_output is not None:
+                    cv2.imshow("Depth Map", depth_output["colored"])
 
-            if show_depth and depth_output is not None:
-                cv2.imshow("Depth Map", depth_output["colored"])
+            if writer is not None:
+                writer.write(frame)
 
             # Save dataset
             if saving and exporter:
@@ -212,7 +225,11 @@ def main():
                 break
 
         # Key controls
-        key = cv2.waitKey(1) & 0xFF
+        if args.headless:
+            key = -1
+        else:
+            key = cv2.waitKey(1) & 0xFF
+
         if key == ord('q'):
             break
         elif key == ord('s'):
@@ -225,7 +242,7 @@ def main():
             print("Trajectories reset!")
         elif key == ord('d'):
             show_depth = not show_depth
-            if not show_depth:
+            if not show_depth and not args.headless:
                 cv2.destroyWindow("Depth Map")
         elif key == ord(' '):
             if is_video_file:
@@ -235,8 +252,11 @@ def main():
     if saving and exporter:
         exporter.save()
 
+    if writer is not None:
+        writer.release()
     cap.release()
-    cv2.destroyAllWindows()
+    if not args.headless:
+        cv2.destroyAllWindows()
     tracker.close()
     print("\nPlatform stopped!")
 

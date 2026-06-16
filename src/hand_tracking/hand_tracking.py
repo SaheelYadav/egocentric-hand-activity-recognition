@@ -237,8 +237,7 @@ class HandTracker:
 
     def draw(self, frame: np.ndarray, tracked_hands: dict) -> np.ndarray:
         """
-        Full-detail draw: coloured per-finger connections, numbered dots,
-        hand label + bounding box + finger-state bar.
+        Draw only the hand key points (connections and dots) - no hand bounding boxes or labels.
         """
         for label, data in tracked_hands.items():
             if data is None:
@@ -271,23 +270,6 @@ class HandTracker:
                     cv2.FONT_HERSHEY_PLAIN, 0.8,
                     (255, 255, 255), 1, cv2.LINE_AA,
                 )
-
-            # ── Bounding box ─────────────────────────────────────────────
-            x1, y1, x2, y2 = data["bbox"]
-            box_color = (0, 255, 120) if label == "right" else (255, 180, 0)
-            cv2.rectangle(frame, (x1 - 10, y1 - 10), (x2 + 10, y2 + 10),
-                          box_color, 1)
-
-            # ── Hand label ───────────────────────────────────────────────
-            cv2.putText(
-                frame, label.upper(),
-                (x1 - 10, y1 - 18),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.75, box_color, 2, cv2.LINE_AA,
-            )
-
-            # ── Finger-state bar (bottom of bbox) ────────────────────────
-            self._draw_finger_bar(frame, data["finger_states"],
-                                  x1 - 10, y2 + 14)
 
         return frame
 

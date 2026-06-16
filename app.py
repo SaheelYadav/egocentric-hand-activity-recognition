@@ -110,14 +110,6 @@ def process_frame(frame, is_webcam=True):
     activities = activity.recognize(tracked_hands, workspace_events, w, h)
 
     frame = tracker.draw(frame, tracked_hands)
-    interacting_bboxes = {tuple(inter['bbox']) for inter in interactions}
-    interacting_detections = [
-        det for det in detections
-        if tuple(det['bbox']) in interacting_bboxes
-    ]
-    frame = detector.draw(frame, interacting_detections)
-    frame = trajectory.draw(frame)
-    frame = interaction.draw(frame, interactions)
     frame = activity.draw(frame, activities, interactions=workspace_events)
 
     # Build stats

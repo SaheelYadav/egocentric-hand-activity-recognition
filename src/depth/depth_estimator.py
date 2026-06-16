@@ -10,7 +10,7 @@ class DepthEstimator:
         device = 0 if torch.cuda.is_available() else -1
         self.pipe = pipeline(
             task="depth-estimation",
-            model="depth-anything/Depth-Anything-V2-Small-hf",
+            model="depth-anything/Depth-Anything-V2-Large-hf",
             device=device
         )
         print(f"Depth model loaded on device: {device}!")

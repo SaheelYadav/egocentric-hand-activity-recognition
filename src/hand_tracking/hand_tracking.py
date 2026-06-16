@@ -1,7 +1,10 @@
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 import numpy as np
-
+import os
+import urllib.request
 
 # ── Landmark index names for all 21 points ──────────────────────────────────
 LANDMARK_NAMES = [
@@ -31,6 +34,14 @@ FINGER_RANGES = {
     "RING":   (13, 17),
     "PINKY":  (17, 21),
 }
+
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),           # thumb
+    (0, 5), (5, 6), (6, 7), (7, 8),           # index
+    (5, 9), (9, 10), (10, 11), (11, 12),      # middle
+    (9, 13), (13, 14), (14, 15), (15, 16),    # ring
+    (13, 17), (0, 17), (17, 18), (18, 19), (19, 20)  # pinky and palm/wrist connection
+]
 
 
 def _preprocess(frame: np.ndarray) -> np.ndarray:
@@ -62,17 +73,15 @@ def _finger_for_idx(idx: int) -> str:
 
 class HandTracker:
     """
-    Robust 21-point hand tracker built on MediaPipe Hands.
+    Robust 21-point hand tracker built on MediaPipe Tasks HandLandmarker.
 
     Improvements over the original:
       • CLAHE + sharpening pre-processing for workshop / low-light scenes
-      • Lower (but still reliable) detection threshold with model_complexity=1
       • Correct Left/Right label — MediaPipe returns mirrored labels for webcam
         input; we flip them when `mirror_labels=True` (default ON for webcam)
       • Rich per-finger coloured landmark drawing with index labels
       • Per-landmark pixel coordinates exposed in `keypoints`
       • Finger-state (extended / bent) helper
-      • draw_landmarks_detailed() replaces the default MediaPipe style
     """
 
     def __init__(
@@ -80,23 +89,34 @@ class HandTracker:
         max_hands: int = 2,
         detection_confidence: float = 0.4,   # lowered from 0.7 for workshop
         tracking_confidence: float  = 0.4,
-        model_complexity: int       = 1,      # 0=fast, 1=balanced, 2=accurate
+        model_complexity: int       = 1,      # Ignored in Tasks API but kept for compatibility
         mirror_labels: bool         = True,   # flip L/R for front-facing webcam
         preprocess: bool            = True,   # CLAHE + sharpen
     ):
-        self.mp_hands  = mp.solutions.hands
-        self.mp_draw   = mp.solutions.drawing_utils
-
         self.mirror_labels = mirror_labels
         self.preprocess    = preprocess
 
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=max_hands,
-            model_complexity=model_complexity,
-            min_detection_confidence=detection_confidence,
+        # Determine path to model file (saved locally within module folder)
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(dir_path, "hand_landmarker.task")
+
+        # Download if not present
+        if not os.path.exists(model_path):
+            print(f"Downloading Hand Landmarker model to {model_path}...")
+            url = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+            urllib.request.urlretrieve(url, model_path)
+            print("Download completed successfully!")
+
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,
+            num_hands=max_hands,
+            min_hand_detection_confidence=detection_confidence,
+            min_hand_presence_confidence=tracking_confidence,
             min_tracking_confidence=tracking_confidence,
         )
+        self.detector = vision.HandLandmarker.create_from_options(options)
 
     # ────────────────────────────────────────────────────────────────────
     #  Core processing
@@ -121,19 +141,31 @@ class HandTracker:
         h, w = frame.shape[:2]
         src  = _preprocess(frame) if self.preprocess else frame
         rgb  = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
-        results = self.hands.process(rgb)
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self.detector.detect(mp_image)
 
         output = {"left": None, "right": None}
 
-        if not (results.multi_hand_landmarks and results.multi_handedness):
+        if not results or not results.hand_landmarks:
             return output
 
         mirror = self.mirror_labels if mirror_labels is None else mirror_labels
 
-        for hand_lm, handedness in zip(
-            results.multi_hand_landmarks, results.multi_handedness
-        ):
-            raw_label = handedness.classification[0].label.lower()  # mediapipe label
+        for i, hand_lms in enumerate(results.hand_landmarks):
+            if i >= len(results.handedness):
+                continue
+            
+            handedness_list = results.handedness[i]
+            if not handedness_list:
+                continue
+            
+            category = handedness_list[0]
+            raw_label = (
+                getattr(category, 'category_name', None) or 
+                getattr(category, 'categoryName', None) or 
+                getattr(category, 'label', 'left')
+            ).lower()
 
             # MediaPipe mirrors left↔right for selfie/webcam streams
             if mirror:
@@ -146,7 +178,7 @@ class HandTracker:
             # Build rich keypoints list
             keypoints = []
             xs, ys = [], []
-            for idx, lm in enumerate(hand_lm.landmark):
+            for idx, lm in enumerate(hand_lms):
                 px, py = int(lm.x * w), int(lm.y * h)
                 xs.append(px); ys.append(py)
                 keypoints.append({
@@ -162,9 +194,13 @@ class HandTracker:
             bbox          = (min(xs), min(ys), max(xs), max(ys))
             finger_states = self._finger_states(keypoints)
 
+            class DummyLandmarks:
+                def __init__(self, landmarks):
+                    self.landmark = landmarks
+
             output[label] = {
                 "keypoints":     keypoints,
-                "landmarks":     hand_lm,
+                "landmarks":     DummyLandmarks(hand_lms),
                 "finger_states": finger_states,
                 "bbox":          bbox,
             }
@@ -209,11 +245,9 @@ class HandTracker:
                 continue
 
             kps = data["keypoints"]
-            h_img, w_img = frame.shape[:2]
 
             # ── Draw connections first (so dots sit on top) ──────────────
-            connections = list(self.mp_hands.HAND_CONNECTIONS)
-            for (a_idx, b_idx) in connections:
+            for (a_idx, b_idx) in HAND_CONNECTIONS:
                 finger = _finger_for_idx(a_idx)
                 color  = FINGER_COLORS[finger]
                 pa = (kps[a_idx]["px"], kps[a_idx]["py"])
@@ -279,7 +313,8 @@ class HandTracker:
                         (255, 255, 255), 1, cv2.LINE_AA)
 
     def close(self):
-        self.hands.close()
+        if hasattr(self, 'detector'):
+            self.detector.close()
 
 
 # ─────────────────────────────────────────────

@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 import torch
+import sys
+from unittest.mock import MagicMock
+sys.modules['torchaudio'] = MagicMock()
 from transformers import pipeline
 
 
